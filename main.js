@@ -90,12 +90,23 @@ function CreateSurfaceData()
 {
     let vertexList = [];
 
-    // to be edited
-    for (let i=0; i<360; i+=5) {
-        vertexList.push( Math.sin(deg2rad(i)), 1, Math.cos(deg2rad(i)) );
-        vertexList.push( Math.sin(deg2rad(i)), 0, Math.cos(deg2rad(i)) );
-    }
+    const H = 1;
+    const c = 5;
+    const p = 8 * Math.PI
+    const alpha = 0.033 * Math.PI;
+    const theta0 = 0;
+    const phi = 0 * Math.PI;
 
+    for (let u = 0; u < 1; u += 0.005) {
+        for (let v = -5; v < 5; v += 0.01) {
+            const theta = p * u + theta0;
+            const x = c * u + v * (Math.sin(phi) + Math.tan(alpha) * Math.cos(phi) * Math.cos(theta));
+            const y = v * Math.tan(alpha) * Math.sin(theta);
+            const z = H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
+             
+            vertexList.push(x * 0.35 , y * 0.35, z * 0.35)
+      }
+    }
     return vertexList;
 }
 
