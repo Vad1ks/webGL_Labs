@@ -4,6 +4,7 @@ let gl;                         // The webgl context.
 let surface;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
+let surfaceType
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -29,8 +30,17 @@ function Model(name) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
-   
-        gl.drawArrays(gl.TRIANGLE_FAN, 0, this.count);
+        
+        if (surfaceType.checked) {
+            gl.drawArrays(gl.TRIANGLE_FAN, 0, this.count);
+          } else {
+            let pointsLength = 1
+            const stepLength = this.count / pointsLength;
+            for (let step = 0; step < this.count; step += stepLength) {
+              gl.drawArrays(gl.LINE_STRIP, step, stepLength);
+            }
+        }
+        //gl.drawArrays(gl.TRIANGLE_FAN, 0, this.count);
     }
 }
 
@@ -85,6 +95,11 @@ function draw() {
 
     surface.Draw();
 }
+
+function rerender() {
+    surface.BufferData(CreateSurfaceData());
+    draw();
+  }
 
 function CreateSurfaceData()
 {
@@ -165,7 +180,9 @@ function createProgram(gl, vShader, fShader) {
  * initialization function that will be called when the page has loaded
  */
 function init() {
+    surfaceType = document.getElementById('SurfaceType');
     let canvas;
+    
     try {
         canvas = document.getElementById("webglcanvas");
         gl = canvas.getContext("webgl");
