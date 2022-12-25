@@ -15,13 +15,16 @@ function deg2rad(angle) {
 function Model(name) {
     this.name = name;
     this.iVertexBuffer = gl.createBuffer();
+    this.iNormalBuffer = gl.createBuffer();
     this.count = 0;
 
-    this.BufferData = function(vertices) {
+    this.BufferData = function(vertices, normals) {
 
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STREAM_DRAW);
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iNormalBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normals), gl.STREAM_DRAW);
         this.count = vertices.length/3;
     }
 
@@ -31,6 +34,8 @@ function Model(name) {
         gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
         
+        gl.vertexAttribPointer(shProgram.iNormal, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iNormal); 
         if (surfaceType.checked) {
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
           } else {
@@ -57,6 +62,9 @@ function ShaderProgram(name, program) {
     // Location of the uniform matrix representing the combined transformation.
     this.iModelViewProjectionMatrix = -1;
 
+    // Normals
+    this.iNormal = -1;
+    this.iNormalMatrix = -1;
     this.Use = function() {
         gl.useProgram(this.prog);
     }
@@ -82,12 +90,17 @@ function draw() {
 
     let matAccum0 = m4.multiply(rotateToPointZero, modelView );
     let matAccum1 = m4.multiply(translateToPointZero, matAccum0 );
+
+    const modelviewInv = m4.inverse(matAccum1, new Float32Array(16));
+    const normalMatrix = m4.transpose(modelviewInv, new Float32Array(16));  
         
     /* Multiply the projection matrix times the modelview matrix to give the
        combined transformation matrix, and send that to the shader program. */
     let modelViewProjection = m4.multiply(projection, matAccum1 );
 
     gl.uniformMatrix4fv(shProgram.iModelViewProjectionMatrix, false, modelViewProjection );
+
+    gl.uniformMatrix4fv(shProgram.iNormalMatrix, false, normalMatrix);
     
     /* Draw the six faces of a cube, with different colors. */
     gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
@@ -96,7 +109,8 @@ function draw() {
 }
 
 function rerender() {
-    surface.BufferData(CreateSurfaceData());
+    let surfaceData = CreateSurfaceData()
+    surface.BufferData(surfaceData[0],surfaceData[1]);
     draw();
   }
 
@@ -111,9 +125,25 @@ function getY (v, alpha, theta){
 function getZ(v, alpha, phi, theta, H){
     return H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
 }
+
+function getDerivativeU(u,v,alpha,phi,c,p,theta0){
+    let dx_du = c - p*v * Math.tan(alpha) * Math.cos(phi) * Math.sin(p*u+theta0);
+    let dy_du = p * v * Math.tan(alpha) * Math.cos(p*u+theta0);
+    let dz_du = -p * v * Math.tan(alpha) * Math.sin(phi) * Math.sin(p*u+theta0);
+    return [dx_du,dy_du,dz_du];
+}
+
+function getDerivativeV(u,alpha,phi,p,theta0,){
+    let dx_dv = Math.tan(alpha) * Math.cos(phi) * Math.cos(p*u+theta0) + Math.sin(phi);
+    let dy_dv = Math.tan(alpha) * Math.sin(p*u+theta0);
+    let dz_dv = Math.tan(alpha) * Math.sin(phi) * Math.cos(p*u+theta0) - Math.cos(phi);
+    return [dx_dv,dy_dv,dz_dv];
+}
+
 function CreateSurfaceData()
 {
     let vertexList = [];
+    let normalsList = [];
 
     const H = 1;
     const c = 5;
@@ -130,17 +160,27 @@ function CreateSurfaceData()
             let x = getX(u,v,alpha,phi,theta,c);
             let y = getY(v,alpha,theta);
             let z = getZ(v,alpha,p,theta,H);
+            let derU = getDerivativeU(u,v,x,y,z,alpha,phi,c,p,theta0);
+            let derV = getDerivativeV(u,v,x,y,z,alpha,phi,p,theta0);
+            let res = m4.cross(derU,derV);
+
             vertexList.push(x * 0.35 , y * 0.35, z * 0.35);
+            normalsList.push(res[0], res[1], res[2]);
+
             theta = p * u+step + theta0;
             x = getX(u+step,v,alpha,phi,theta,c);
             y = getY(v,alpha,theta);
             z = getZ(v,alpha,p,theta,H);
+            derU = getDerivativeU(u,v,x,y,z,alpha,phi,c,p,theta0);
+            derV = getDerivativeV(u,v,x,y,z,alpha,phi,p,theta0);
+            res = m4.cross(derU,derV);
+
             vertexList.push(x * 0.35 , y * 0.35, z * 0.35);
+            normalsList.push(res[0], res[1], res[2]);
       }
     }
-    return vertexList;
+    return [vertexList, normalsList];
 }
-
 
 /* Initialize the WebGL context. Called from init() */
 function initGL() {
@@ -153,9 +193,12 @@ function initGL() {
     shProgram.iModelViewProjectionMatrix = gl.getUniformLocation(prog, "ModelViewProjectionMatrix");
     shProgram.iColor                     = gl.getUniformLocation(prog, "color");
 
-    surface = new Model('Surface');
-    surface.BufferData(CreateSurfaceData());
+    shProgram.iNormal                    = gl.getAttribLocation(prog, 'normal');
+    shProgram.iNormalMatrix              = gl.getUniformLocation(prog, 'normalMat');
 
+    surface = new Model('Surface');
+    let surfaceData = CreateSurfaceData()
+    surface.BufferData(surfaceData[0],surfaceData[1]);
     gl.enable(gl.DEPTH_TEST);
 }
 
