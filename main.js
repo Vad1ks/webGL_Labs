@@ -4,7 +4,7 @@ let gl;                         // The webgl context.
 let surface;                    // A surface model
 let shProgram;                  // A shader program
 let spaceball;                  // A SimpleRotator object that lets the user rotate the view by mouse.
-let surfaceType
+let surfaceType;
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -32,7 +32,7 @@ function Model(name) {
         gl.enableVertexAttribArray(shProgram.iAttribVertex);
         
         if (surfaceType.checked) {
-            gl.drawArrays(gl.TRIANGLE_FAN, 0, this.count);
+            gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
           } else {
             let pointsLength = 1
             const stepLength = this.count / pointsLength;
@@ -40,7 +40,6 @@ function Model(name) {
               gl.drawArrays(gl.LINE_STRIP, step, stepLength);
             }
         }
-        //gl.drawArrays(gl.TRIANGLE_FAN, 0, this.count);
     }
 }
 
@@ -101,6 +100,17 @@ function rerender() {
     draw();
   }
 
+function getX (u, v, alpha, phi, theta, c){
+    return c * u + v * (Math.sin(phi) + Math.tan(alpha) * Math.cos(phi) * Math.cos(theta));
+}
+
+function getY (v, alpha, theta){
+    return v * Math.tan(alpha) * Math.sin(theta);
+}
+
+function getZ(v, alpha, phi, theta, H){
+    return H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
+}
 function CreateSurfaceData()
 {
     let vertexList = [];
@@ -112,14 +122,20 @@ function CreateSurfaceData()
     const theta0 = 0;
     const phi = 0 * Math.PI;
 
-    for (let u = 0; u < 1; u += 0.005) {
+    let step = surfaceType.checked? 0.05 : 0;
+    let uStep = 0.005;
+    for (let u = 0; u < 1; u += uStep) {
         for (let v = -5; v < 5; v += 0.01) {
-            const theta = p * u + theta0;
-            const x = c * u + v * (Math.sin(phi) + Math.tan(alpha) * Math.cos(phi) * Math.cos(theta));
-            const y = v * Math.tan(alpha) * Math.sin(theta);
-            const z = H + v * (Math.tan(alpha) * Math.sin(phi) * Math.cos(theta) - Math.cos(phi));
-             
-            vertexList.push(x * 0.35 , y * 0.35, z * 0.35)
+            let theta = p * u + theta0;
+            let x = getX(u,v,alpha,phi,theta,c);
+            let y = getY(v,alpha,theta);
+            let z = getZ(v,alpha,p,theta,H);
+            vertexList.push(x * 0.35 , y * 0.35, z * 0.35);
+            theta = p * u+step + theta0;
+            x = getX(u+step,v,alpha,phi,theta,c);
+            y = getY(v,alpha,theta);
+            z = getZ(v,alpha,p,theta,H);
+            vertexList.push(x * 0.35 , y * 0.35, z * 0.35);
       }
     }
     return vertexList;
