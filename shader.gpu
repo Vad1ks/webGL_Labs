@@ -88,6 +88,10 @@ const fragmentShaderSource = `
    precision mediump float;
 #endif
 
+varying vec2 v_texcoord;
+uniform sampler2D tmu;
+uniform float rotA;
+
 varying vec4 color;
 precision mediump float;
 varying vec3 normalInterp;  // Surface normal
@@ -117,5 +121,9 @@ void main() {
   gl_FragColor = vec4(ambientCoefficient * ambientColor 
                   + diffuseCoefficient * dotProduct * diffuseColor 
                   + specularCoefficient * specular * specularColor, 1.0);
-
+vec4 texColor = texture2D(tmu, v_texcoord);
+    gl_FragColor = texColor;
+    if(rotA>1000.0){
+        gl_FragColor = vec4(0.,0.,0.,0.);
+    }
 }`;

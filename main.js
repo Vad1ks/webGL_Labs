@@ -32,6 +32,8 @@ function Model(name) {
     this.iVertexBuffer = gl.createBuffer();
     this.iNormalBuffer = gl.createBuffer();
     this.count = 0;
+    this.iTextureBuffer = gl.createBuffer();
+    this.countText = 0;
 
     this.BufferData = function(vertices, normals) {
 
@@ -43,6 +45,13 @@ function Model(name) {
 
         this.count = vertices.length/3;
     }
+    this.TextureBufferData = function (points) {
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTextureBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(points), gl.STREAM_DRAW);
+
+        this.countText = points.length / 2;
+    }
 
     this.Draw = function() {
 
@@ -53,6 +62,9 @@ function Model(name) {
         gl.vertexAttribPointer(shProgram.iNormal, 3, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iNormal); 
 
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iTextureBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribTexture, 2, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribTexture);
         if (surfaceType.checked) {
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
           } else {
@@ -96,7 +108,14 @@ function ShaderProgram(name, program) {
     // Light position
     this.iLightPos = -1;
 
-    this.Use = function() {
+    this.iAttribTexture = -1;
+
+    this.iUserPoint = -1;
+    this.irotAngle = 0;
+    this.iUP = -1;
+    this.iTMU = -1;
+
+    this.Use = function () {
         gl.useProgram(this.prog);
     }
 }
@@ -150,6 +169,8 @@ function draw() {
     /* Draw the six faces of a cube, with different colors. */
     gl.uniform4fv(shProgram.iColor, [1,1,0,1] );
 
+    gl.uniform1i(shProgram.iTMU, 0);
+    gl.enable(gl.TEXTURE_2D);
     surface.Draw();
 }
 
@@ -252,9 +273,13 @@ function initGL() {
     shProgram.iAmbientCoefficient        = gl.getUniformLocation(prog, 'ambientCoefficient');
     shProgram.iDiffuseCoefficient        = gl.getUniformLocation(prog, 'diffuseCoefficient');
 
+    shProgram.iUP                        = gl.getUniformLocation(prog, 'translateUP');
+    shProgram.iTMU                       = gl.getUniformLocation(prog, 'tmu');
     surface = new Model('Surface');
     let surfaceData = CreateSurfaceData()
     surface.BufferData(surfaceData[0],surfaceData[1]);
+    LoadTexture()
+    surface.TextureBufferData(CreateTextureData());
     gl.enable(gl.DEPTH_TEST);
 }
 
@@ -323,4 +348,31 @@ function init() {
     spaceball = new TrackballRotator(canvas, draw, 0);
 
     draw();
+}
+function LoadTexture() {
+    let texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+    const image = new Image();
+    image.crossOrigin = 'anonymus';
+    image.src = "https://raw.githubusercontent.com/Vad1ks/webGL_Labs/CGW/texture.jpg";
+    image.onload = () => {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(
+            gl.TEXTURE_2D,
+            0,
+            gl.RGBA,
+            gl.RGBA,
+            gl.UNSIGNED_BYTE,
+            image
+        );
+        console.log("imageLoaded")
+        draw()
+    }
+function map(val, f1, t1, f2, t2) {
+    let m;
+    m = (val - f1) * (t2 - f2) / (t1 - f1) + f2
+    return Math.min(Math.max(m, f2), t2);
 }
