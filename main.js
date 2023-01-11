@@ -11,6 +11,9 @@ let lightPositionEl;
 let height = 1.5;
 let step = 20;
 let radius = 5;
+let point;
+let userPointCoord;
+let userRotAngle;
 
 function deg2rad(angle) {
     return angle * Math.PI / 180;
@@ -65,6 +68,7 @@ function Model(name) {
         gl.bindBuffer(gl.ARRAY_BUFFER, this.iTextureBuffer);
         gl.vertexAttribPointer(shProgram.iAttribTexture, 2, gl.FLOAT, false, 0, 0);
         gl.enableVertexAttribArray(shProgram.iAttribTexture);
+
         if (surfaceType.checked) {
             gl.drawArrays(gl.TRIANGLE_STRIP, 0, this.count);
           } else {
@@ -75,8 +79,36 @@ function Model(name) {
             }
         }
     }
+    this.DrawPoint = function () {
+        gl.bindBuffer(gl.ARRAY_BUFFER, this.iVertexBuffer);
+        gl.vertexAttribPointer(shProgram.iAttribVertex, 3, gl.FLOAT, false, 0, 0);
+        gl.enableVertexAttribArray(shProgram.iAttribVertex);
+        gl.drawArrays(gl.LINE_STRIP, 0, this.count);
+    }
 }
 
+function CreateSphereSurface(r = 0.1) {
+    let vertexList = [];
+    let lon = -Math.PI;
+    let lat = -Math.PI * 0.5;
+    while (lon < Math.PI) {
+        while (lat < Math.PI * 0.5) {
+            let v1 = sphereSurfaceDate(r, lon, lat);
+            vertexList.push(v1.x, v1.y, v1.z);
+            lat += 0.05;
+        }
+        lat = -Math.PI * 0.5
+        lon += 0.05;
+    }
+    return vertexList;
+}
+
+function sphereSurfaceDate(r, u, v) {
+    let x = r * Math.sin(u) * Math.cos(v);
+    let y = r * Math.sin(u) * Math.sin(v);
+    let z = r * Math.cos(u);
+    return { x: x, y: y, z: z };
+}
 
 // Constructor
 function ShaderProgram(name, program) {
@@ -171,7 +203,24 @@ function draw() {
 
     gl.uniform1i(shProgram.iTMU, 0);
     gl.enable(gl.TEXTURE_2D);
+    gl.uniform2fv(shProgram.iUserPoint, [userPointCoord.x, userPointCoord.y]);
+    gl.uniform1f(shProgram.irotAngle, userRotAngle);
+    gl.uniform2fv(shProgram.iUserPoint, [userPointCoord.x, userPointCoord.y]); //giving coordinates of user point
+    gl.uniform1f(shProgram.irotAngle, userRotAngle);
+
     surface.Draw();
+
+    const H = 1;
+    const c = 5;
+    const p = 8 * Math.PI
+    const alpha = 0.033 * Math.PI;
+    const theta0 = 0;
+    const phi = 0 * Math.PI;
+    let theta = p * map(userPointCoord.x, 0, 1, 0, 1) + theta0;
+    let translation = { x: 0.35 * getX(map(userPointCoord.x, 0, 1, 0, 1), map(userPointCoord.y, 0, 1, -5, 5), alpha, phi, theta, c), y: 0.35 * getY(map(userPointCoord.y, 0, 1, -5, 5), alpha, theta), z: 0.35 * getZ(map(userPointCoord.y, 0, 1, -5, 5), alpha, p, theta, H) }
+    gl.uniform3fv(shProgram.iUP, [translation.x, translation.y, translation.z]);
+    gl.uniform1f(shProgram.irotAngle, 1100);
+    point.DrawPoint();
 }
 
 function rerender() {
@@ -204,6 +253,32 @@ function getDerivativeV(u,alpha,phi,p,theta0,){
     let dy_dv = Math.tan(alpha) * Math.sin(p*u+theta0);
     let dz_dv = Math.tan(alpha) * Math.sin(phi) * Math.cos(p*u+theta0) - Math.cos(phi);
     return [dx_dv,dy_dv,dz_dv];
+}
+
+function CreateTextureData() {
+    let vertexList = [];
+    const H = 1;
+    const c = 5;
+    const p = 8 * Math.PI
+    const alpha = 0.033 * Math.PI;
+    const theta0 = 0;
+    const phi = 0 * Math.PI;
+    let uStep = 0.005;
+    for (let u = 0; u < 1; u += uStep) {
+        for (let v = -5; v < 5; v += 0.01) {
+            let v1 = map(v,-5,5,0,1)
+            vertexList.push(u, v);
+            vertexList.push(u+uStep, v);
+            v1 = map(v+0.1,5,5,0,1)
+            vertexList.push(u, v1);
+            v1 = map(v,-5,5,0,1)
+            vertexList.push(u+uStep, v1);
+            v1 = map(v+0.1,5,5,0,1)
+            vertexList.push(u+uStep, v1);
+            vertexList.push(u, v1);
+        }
+    }
+    return vertexList;
 }
 
 function CreateSurfaceData()
@@ -243,7 +318,7 @@ function CreateSurfaceData()
 
             vertexList.push(x * 0.35 , y * 0.35, z * 0.35);
             normalsList.push(res[0], res[1], res[2]);
-      }
+        }
     }
     return [vertexList, normalsList];
 }
@@ -273,13 +348,19 @@ function initGL() {
     shProgram.iAmbientCoefficient        = gl.getUniformLocation(prog, 'ambientCoefficient');
     shProgram.iDiffuseCoefficient        = gl.getUniformLocation(prog, 'diffuseCoefficient');
 
+    shProgram.iAttribTexture             = gl.getAttribLocation(prog, "texture");
+    shProgram.iUserPoint                 = gl.getUniformLocation(prog, 'userPoint');
+    shProgram.irotAngle                  = gl.getUniformLocation(prog, 'rotA');
     shProgram.iUP                        = gl.getUniformLocation(prog, 'translateUP');
     shProgram.iTMU                       = gl.getUniformLocation(prog, 'tmu');
+
     surface = new Model('Surface');
+    point = new Model('Point');
     let surfaceData = CreateSurfaceData()
     surface.BufferData(surfaceData[0],surfaceData[1]);
     LoadTexture()
     surface.TextureBufferData(CreateTextureData());
+    point.BufferData(CreateSphereSurface())
     gl.enable(gl.DEPTH_TEST);
 }
 
@@ -320,6 +401,8 @@ function createProgram(gl, vShader, fShader) {
  * initialization function that will be called when the page has loaded
  */
 function init() {
+    userPointCoord = { x: 0.1, y: 0.1 }
+    userRotAngle = 0.0;
     surfaceType = document.getElementById('SurfaceType');
     lightPositionEl = document.getElementById('lightPostion');
     let canvas;
@@ -371,6 +454,34 @@ function LoadTexture() {
         console.log("imageLoaded")
         draw()
     }
+}
+
+window.onkeydown = (e) => {
+    // console.log(e.keyCode)
+    switch (e.keyCode) {
+        case 87:
+            userPointCoord.x -= 0.01;
+            break;
+        case 83:
+            userPointCoord.x += 0.01;
+            break;
+        case 65:
+            userPointCoord.y += 0.01;
+            break;
+        case 68:
+            userPointCoord.y -= 0.01;
+            break;
+    }
+    userPointCoord.x = Math.max(0.001, Math.min(userPointCoord.x, 0.999))
+    userPointCoord.y = Math.max(0.001, Math.min(userPointCoord.y, 0.999))
+    draw();
+}
+
+onmousemove = (e) => {
+    userRotAngle = map(e.clientX, 0, window.outerWidth, 0, Math.PI)
+    draw()
+};
+
 function map(val, f1, t1, f2, t2) {
     let m;
     m = (val - f1) * (t2 - f2) / (t1 - f1) + f2
